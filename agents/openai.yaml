@@ -1,6 +1,6 @@
 openai_spec_version: 1.0
 name: Requirement Solution Planner
-description: 先判断输入是单需求还是多需求，再输出结构化执行方案。适用于需求拆解、实施规划、优先级排序、依赖分析、交付物定义、验收标准和复核机制设计；多需求场景会先生成总方案，再继续拆成独立事项方案。默认减少隐含假设、避免过度规划、控制范围漂移，并把模糊请求改写为可验证成功标准。
+description: 先判断输入是单需求还是多需求，再输出结构化执行方案。适用于需求拆解、实施规划、优先级排序、依赖分析、交付物定义、验收标准和复核机制设计；多需求场景会先生成总方案，再继续拆成独立事项方案。
 display_name: Requirement Solution Planner
 category: productivity
 icon: clipboard-check
