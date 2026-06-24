@@ -11,7 +11,11 @@
 - 定义交付物、完成标准、错误判断标准、范围边界
 - 把任务拆成单步可验证的执行切片
 - 为每一步补上复核机制
-- 多需求场景下按分批文件输出：先生成 `00-分批方案索引.md`，再生成 `R1-xxx方案.md`、`R2-xxx方案.md` 等独立方案文件
+- 多需求场景下按分批文件输出：先生成 `00-分批方案索引.md`，再按需生成 `R1-xxx方案.md`、`R2-xxx方案.md` 等独立方案文件
+- 在需求不清时先追问，而不是硬写完整方案
+- 把方案继续转成 PRD、issue brief、执行切片或 handoff
+- 对长期项目沉淀 `CONTEXT.md` 和 ADR 建议
+- 对功能、Bug、重构补上测试、复现或浏览器自测路径
 
 ## 核心原则
 
@@ -45,6 +49,16 @@
 
 宽松标准，例如“只要能运行就行”，会被改写成可验证目标。
 
+### 可交接
+
+方案不是最终产物时，可以继续转成：
+
+- PRD
+- issue brief
+- 单个 R 项执行任务
+- 跨会话 handoff
+- `CONTEXT.md` / ADR 更新建议
+
 ## 适用场景
 
 - 产品需求拆解
@@ -54,6 +68,9 @@
 - Bug 修复规划
 - 重构计划整理
 - 文档整理与项目推进计划
+- PRD / issue / handoff 生成
+- 功能开发前的验收路径设计
+- Bug 修复与重构前的验证路径设计
 
 ## 强触发词
 
@@ -93,7 +110,7 @@ R4-xxx方案.md
 
 `00-分批方案索引.md` 用来说明总目标、技术栈/前提、文件清单、推荐实施顺序和最小开发闭环。
 
-每个 `R*-xxx方案.md` 只写对应事项自己的小需求、交付物、完成标准、错误判断标准、范围边界和复核方式。
+默认先输出索引；当用户要求“展开全部”或指定某些 R 项时，再输出对应 `R*-xxx方案.md`。每个 R 文件只写对应事项自己的小需求、交付物、完成标准、错误判断标准、范围边界、复核方式和执行接力。
 
 ## 仓库结构
 
@@ -106,7 +123,11 @@ R4-xxx方案.md
 ├─ references/
 │  ├─ templates.md
 │  ├─ karpathy-principles.md
-│  └─ examples.md
+│  ├─ examples.md
+│  ├─ grilling-and-clarification.md
+│  ├─ execution-bridge.md
+│  ├─ context-and-adr.md
+│  └─ engineering-validation.md
 └─ chatgpt-vue3-user-improvement-solution.md
 ```
 
@@ -117,6 +138,10 @@ R4-xxx方案.md
 - `references/templates.md`：单需求 / 多需求模板
 - `references/karpathy-principles.md`：三条核心护栏的映射说明
 - `references/examples.md`：高质量输入输出示例
+- `references/grilling-and-clarification.md`：需求不清时的一问一答追问规则
+- `references/execution-bridge.md`：方案转 PRD、issue、handoff 或执行切片
+- `references/context-and-adr.md`：项目术语、上下文和架构决策沉淀
+- `references/engineering-validation.md`：功能、Bug、重构、UI 的验证路径
 - `README.md`：仓库说明，给人阅读
 
 ## 示例输入
@@ -135,4 +160,12 @@ R4-xxx方案.md
 
 ```text
 这是多需求，帮我放到 方案规划 目录下，每个 R 单独一个 md 文件。
+```
+
+```text
+把 R2 转成一个可以交给另一个 agent 执行的 issue brief。
+```
+
+```text
+这个方案里出现的新术语和架构决策，帮我整理成 CONTEXT.md 和 ADR 草案。
 ```

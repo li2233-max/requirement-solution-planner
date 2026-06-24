@@ -83,6 +83,11 @@
 - 是否满足完成标准：
 - 是否触发错误判断标准：
 - 最终结论：
+
+## 5. 建议沉淀
+- CONTEXT.md：
+- ADR：
+- Issue / PRD：
 ```
 
 ## 多需求模板
@@ -145,6 +150,12 @@ R3 xxx
 - 主要风险：
 - 平台知识风险：团队/AI 对以下平台无先前经验，存在未知准入门槛可能
 - 暂不包含：
+
+## 建议沉淀
+
+- CONTEXT.md：
+- ADR：
+- 可转 issue：
 ```
 
 ### R 项独立方案模板
@@ -195,6 +206,13 @@ R3 xxx
 - 通过条件：
 - 不通过处理：
 - 结论：继续 / 返工 / 暂停
+
+## 7. 执行接力
+
+- 可转 issue 标题：
+- 执行前必须确认：
+- 最小验证信号：
+- 完成后复核：
 ```
 
 ### 多需求拆分辅助模板
@@ -252,4 +270,42 @@ R3 xxx
 - 实现成本：
 - 风险：
 - 依赖关系：
+```
+
+## PRD / Issue / Handoff 快速模板
+
+用于把方案继续交给人或另一个 AI 执行。完整规则见 [execution-bridge.md](execution-bridge.md)。
+
+### Issue brief
+
+```md
+# [R编号] [事项名]
+
+## Goal
+
+## Context
+- Source plan:
+- Key assumptions:
+
+## Scope
+- Include:
+- Exclude:
+
+## Implementation Steps
+1. Step -> verify:
+2. Step -> verify:
+
+## Acceptance Criteria
+
+## Review Checklist
+```
+
+### 建议沉淀
+
+```md
+## 建议沉淀
+
+- CONTEXT.md：
+- ADR：
+- 不需要沉淀的内容：
 ```
