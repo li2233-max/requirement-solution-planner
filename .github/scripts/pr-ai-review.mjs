@@ -10,8 +10,8 @@ const RISK_LEVELS = new Map([
 ]);
 const RISK_FIELDS = ['title', 'location', 'type', 'basis', 'path', 'impact', 'recommendation'];
 const MAX_DIFF_CHARS = 750_000;
-const SENSITIVE_CHANGE_PATTERN = /auth|login|token|session|permission|role|admin|tenant|payment|billing|user|upload|file|callback|webhook|认证|鉴权|权限|支付|用户|上传|回调/i;
-const SENSITIVE_EVIDENCE_PATTERN = /401|403|未登录|鉴权|权限|授权|用户\s*A|用户\s*B|tenant|租户|资源归属|失效\s*token|authorization/i;
+const ACCESS_CONTROL_SURFACES = ['接口', '认证', '鉴权', '权限', '数据'];
+const ACCESS_CONTROL_EVIDENCE_PATTERN = /401|403|未登录|鉴权|权限|授权|用户\s*A|用户\s*B|tenant|租户|资源归属|失效\s*token|authorization/i;
 
 export class ReviewGateError extends Error {}
 
@@ -86,14 +86,17 @@ export function validateReview(raw, context = {}) {
     throw new ReviewGateError('technicalDebtCount 必须等于 P1/P2 风险数量');
   }
 
+  const sensitiveSurfaces = normalizeSurfaces(source.sensitiveSurfaces);
+  const evidence = requireTextArray(source.evidence, 'evidence');
   const hasP0 = risks.some(risk => risk.level === 'P0');
-  const insufficientSensitiveEvidence = context.sensitiveChanged === true && context.evidenceForSensitivePath !== true;
+  const insufficientAccessControlEvidence = requiresAccessControlEvidence(sensitiveSurfaces)
+    && !hasAccessControlEvidence(evidence);
   return {
-    conclusion: requestedConclusion === 'BLOCK' || hasP0 || insufficientSensitiveEvidence ? 'BLOCK' : 'PASS',
+    conclusion: requestedConclusion === 'BLOCK' || hasP0 || insufficientAccessControlEvidence ? 'BLOCK' : 'PASS',
     summary: requireText(source.summary, 'summary'),
     positives: requireTextArray(source.positives, 'positives'),
-    sensitiveSurfaces: normalizeSurfaces(source.sensitiveSurfaces),
-    evidence: requireTextArray(source.evidence, 'evidence'),
+    sensitiveSurfaces,
+    evidence,
     risks,
     technicalDebtCount,
   };
@@ -186,12 +189,12 @@ function createBlockReview(reason) {
   };
 }
 
-function sensitiveChanged(context, diff) {
-  return SENSITIVE_CHANGE_PATTERN.test((context.changedFiles ?? []).join('\n')) || SENSITIVE_CHANGE_PATTERN.test(diff);
+function requiresAccessControlEvidence(sensitiveSurfaces) {
+  return ACCESS_CONTROL_SURFACES.some(name => ['涉及', '无法判断'].includes(sensitiveSurfaces[name].status));
 }
 
-function evidenceForSensitivePath(evidence) {
-  return evidence.some(item => SENSITIVE_EVIDENCE_PATTERN.test(item));
+function hasAccessControlEvidence(evidence) {
+  return evidence.some(item => ACCESS_CONTROL_EVIDENCE_PATTERN.test(item));
 }
 
 function buildPrompt({ policy, diff, context }) {
@@ -201,7 +204,7 @@ function buildPrompt({ policy, diff, context }) {
     '仅根据所给 diff 和证据做判断；无法验证时明确写“未提供”。',
     '只输出 JSON，不要使用 Markdown 代码块。',
     'JSON 必须包含：conclusion(PASS 或 BLOCK)、summary、positives(string[])、sensitiveSurfaces（接口、认证、鉴权、权限、数据、文件、配置、依赖、CI；每项有 status=涉及/未涉及/无法判断 和 reason）、evidence(string[])、risks（每项有 level=P0/P1/P2、title、location、type、basis、path、impact、recommendation）和 technicalDebtCount（P1/P2 的数量）。',
-    'P0 或敏感路径证据不足必须 BLOCK；仅 P1/P2 才能 PASS。',
+    'P0 必须 BLOCK；仅 P1/P2 才能 PASS。证据要求必须与“变更的敏感面”匹配：接口、认证、鉴权、权限或数据涉及/无法判断时，必须提供 401/403、角色、资源归属或失效 Token 等访问控制证据；仅配置、依赖或 CI 涉及时，不得要求上述接口鉴权证据。CI/配置应改为核对工作流 diff、权限、Secret 暴露、是否执行 PR 代码和扫描结果；只有发现具体风险时才列 P0/P1/P2。',
     '',
     `审查元数据：${JSON.stringify({ repository: context.repository, branch: context.branch, commit: context.commit })}`,
     '',
@@ -213,13 +216,13 @@ function buildPrompt({ policy, diff, context }) {
   ].join('\n');
 }
 
-function insufficientEvidenceRisk() {
+function insufficientAccessControlEvidenceRisk() {
   return {
     level: 'P0',
-    title: '敏感路径缺少可验证安全证据',
-    location: 'PR diff 中的敏感变更',
+    title: '访问控制敏感面缺少可验证安全证据',
+    location: '接口、认证、鉴权、权限或数据变更',
     type: '安全',
-    basis: 'diff 涉及敏感路径，但未提供对应授权、认证或资源归属测试/请求响应证据。',
+    basis: '接口、认证、鉴权、权限或数据被标记为涉及/无法判断，但未提供对应授权、认证或资源归属测试/请求响应证据。',
     path: '未验证的敏感路径可能允许未授权访问或越权操作。',
     impact: '账户、权限、用户数据或业务资源可能受到影响。',
     recommendation: '补充未登录 401/403、角色权限、用户/租户资源归属和失效 Token 等可验证证据后重新审查。',
@@ -245,17 +248,13 @@ export async function runReview(dependencies) {
           model: 'deepseek-v4-pro',
           prompt: buildPrompt({ policy, diff, context }),
         });
-        const changed = sensitiveChanged(context, diff);
-        review = validateReview(raw, {
-          sensitiveChanged: changed,
-          evidenceForSensitivePath: evidenceForSensitivePath(raw.evidence ?? []),
-        });
-        if (changed && !evidenceForSensitivePath(review.evidence)) {
+        review = validateReview(raw);
+        if (requiresAccessControlEvidence(review.sensitiveSurfaces) && !hasAccessControlEvidence(review.evidence)) {
           review = {
             ...review,
             conclusion: 'BLOCK',
-            summary: '敏感路径改动缺少可验证安全证据，需人工安全复核。',
-            risks: [...review.risks, insufficientEvidenceRisk()],
+            summary: '访问控制敏感面缺少可验证安全证据，需人工安全复核。',
+            risks: [...review.risks, insufficientAccessControlEvidenceRisk()],
           };
         }
       }
