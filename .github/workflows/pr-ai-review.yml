@@ -2,7 +2,7 @@ name: PR AI Security Review
 
 on:
   pull_request_target:
-    branches: [main]
+    branches: [dev, main]
     types: [opened, synchronize, reopened]
 
 permissions:

@@ -182,7 +182,7 @@ test('工作流只使用目标分支定义、检出 base SHA 且不执行依赖�
 
   assert.match(yaml, /pull_request_target:/);
   assert.doesNotMatch(yaml, /\npull_request:/);
-  assert.match(yaml, /branches:\s*\[main\]/);
+  assert.match(yaml, /branches:\s*\[dev, main\]/);
   assert.match(yaml, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
   assert.match(yaml, /persist-credentials: false/);
   assert.doesNotMatch(yaml, /github\.event\.pull_request\.head/);
