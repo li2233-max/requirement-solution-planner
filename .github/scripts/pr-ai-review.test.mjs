@@ -177,11 +177,11 @@ test('工作流依赖使用 GitHub API 和 DeepSeek，并更新已有报告评�
   assert.equal(commentCall.options.method, 'PATCH');
 });
 
-test('工作流只使用目标分支定义、检出 base SHA 且不执行依赖安装', async () => {
+test('工作流使用 pull_request、检出 base SHA 且不执行依赖安装', async () => {
   const yaml = await readFile(new URL('../workflows/pr-ai-review.yml', import.meta.url), 'utf8');
 
-  assert.match(yaml, /pull_request_target:/);
-  assert.doesNotMatch(yaml, /\npull_request:/);
+  assert.match(yaml, /pull_request:/);
+  assert.doesNotMatch(yaml, /pull_request_target:/);
   assert.match(yaml, /branches:\s*\[dev, main\]/);
   assert.match(yaml, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
   assert.match(yaml, /persist-credentials: false/);
@@ -189,11 +189,13 @@ test('工作流只使用目标分支定义、检出 base SHA 且不执行依赖�
   assert.doesNotMatch(yaml, /npm (ci|install)|pnpm install|yarn install/);
 });
 
-test('管理员文档包含 Secret、首次验证与必需检查配置', async () => {
+test('管理员文档包含 Secret、pull_request 风险说明与必需检查配置', async () => {
   const setup = await readFile(new URL('../../docs/pr-ai-review-setup.md', import.meta.url), 'utf8');
 
   assert.match(setup, /DEEPSEEK_API_KEY/);
   assert.match(setup, /pr-security-gate/);
   assert.match(setup, /Branch protection rules/);
-  assert.match(setup, /pull_request_target/);
+  assert.match(setup, /pull_request/);
+  assert.doesNotMatch(setup, /pull_request_target/);
+  assert.match(setup, /同仓库/);
 });
