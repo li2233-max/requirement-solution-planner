@@ -188,3 +188,12 @@ test('工作流只使用目标分支定义、检出 base SHA 且不执行依赖�
   assert.doesNotMatch(yaml, /github\.event\.pull_request\.head/);
   assert.doesNotMatch(yaml, /npm (ci|install)|pnpm install|yarn install/);
 });
+
+test('管理员文档包含 Secret、首次验证与必需检查配置', async () => {
+  const setup = await readFile(new URL('../../docs/pr-ai-review-setup.md', import.meta.url), 'utf8');
+
+  assert.match(setup, /DEEPSEEK_API_KEY/);
+  assert.match(setup, /pr-security-gate/);
+  assert.match(setup, /Branch protection rules/);
+  assert.match(setup, /pull_request_target/);
+});
