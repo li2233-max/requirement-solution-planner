@@ -1,0 +1,32 @@
+name: PR AI Security Review
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: pr-ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-security-gate:
+    name: pr-security-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出可信基线
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: 生成 AI 安全审查报告
+        run: node .github/scripts/pr-ai-review.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}

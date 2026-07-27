@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { createWorkflowDependencies, redact, renderReport, runReview, validateReview } from './pr-ai-review.mjs';
 
@@ -174,4 +175,16 @@ test('工作流依赖使用 GitHub API 和 DeepSeek，并更新已有报告评�
   assert.equal(JSON.parse(deepSeekCall.options.body).model, 'deepseek-v4-pro');
   const commentCall = calls.find(call => call.url.endsWith('/issues/comments/11'));
   assert.equal(commentCall.options.method, 'PATCH');
+});
+
+test('工作流只使用目标分支定义、检出 base SHA 且不执行依赖安装', async () => {
+  const yaml = await readFile(new URL('../workflows/pr-ai-review.yml', import.meta.url), 'utf8');
+
+  assert.match(yaml, /pull_request_target:/);
+  assert.doesNotMatch(yaml, /\npull_request:/);
+  assert.match(yaml, /branches:\s*\[main\]/);
+  assert.match(yaml, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+  assert.match(yaml, /persist-credentials: false/);
+  assert.doesNotMatch(yaml, /github\.event\.pull_request\.head/);
+  assert.doesNotMatch(yaml, /npm (ci|install)|pnpm install|yarn install/);
 });
