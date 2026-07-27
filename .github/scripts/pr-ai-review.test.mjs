@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { redact, renderReport, validateReview } from './pr-ai-review.mjs';
+import { createWorkflowDependencies, redact, renderReport, runReview, validateReview } from './pr-ai-review.mjs';
 
 const surfaceNames = ['接口', '认证', '鉴权', '权限', '数据', '文件', '配置', '依赖', 'CI'];
 
@@ -81,4 +81,97 @@ test('报告不会暴露疑似凭据', () => {
 
   assert.doesNotMatch(redacted, /sk-abcdefghijklmnopqrstuvwxyz123456/);
   assert.match(redacted, /\[REDACTED\]/);
+});
+
+test('DeepSeek 的 PASS JSON 生成可更新的报告', async () => {
+  let comment = '';
+  const result = await runReview({
+    getPullRequest: async () => ({ ...baseContext, isFork: false, changedFiles: ['docs/guide.md'] }),
+    getDiff: async () => 'diff --git a/docs/guide.md b/docs/guide.md',
+    readPolicy: async () => '# PR 安全审查门禁',
+    callModel: async request => {
+      assert.match(request.prompt, /PR 安全审查门禁/);
+      assert.match(request.prompt, /docs\/guide\.md/);
+      return review();
+    },
+    upsertComment: async markdown => { comment = markdown; },
+  });
+
+  assert.equal(result.conclusion, 'PASS');
+  assert.match(comment, /判定结果：PASS/);
+});
+
+test('模型调用失败会产生 BLOCK 而不是 PASS', async () => {
+  let comment = '';
+  const result = await runReview({
+    getPullRequest: async () => ({ ...baseContext, isFork: false, changedFiles: ['docs/guide.md'] }),
+    getDiff: async () => 'diff --git a/docs/guide.md b/docs/guide.md',
+    readPolicy: async () => '# PR 安全审查门禁',
+    callModel: async () => { throw new Error('429'); },
+    upsertComment: async markdown => { comment = markdown; },
+  });
+
+  assert.equal(result.conclusion, 'BLOCK');
+  assert.match(comment, /AI 审查不可用或输出无效/);
+});
+
+test('fork PR 不读取 diff 也不调用模型', async () => {
+  const result = await runReview({
+    getPullRequest: async () => ({ ...baseContext, isFork: true, changedFiles: [] }),
+    getDiff: async () => { throw new Error('不应读取 diff'); },
+    readPolicy: async () => { throw new Error('不应读取规则'); },
+    callModel: async () => { throw new Error('不应调用模型'); },
+    upsertComment: async () => {},
+  });
+
+  assert.equal(result.conclusion, 'BLOCK');
+  assert.match(result.markdown, /fork PR/);
+});
+
+test('工作流依赖使用 GitHub API 和 DeepSeek，并更新已有报告评论', async () => {
+  const event = {
+    number: 8,
+    pull_request: {
+      title: '修复审查流程',
+      head: { ref: 'feature/review', sha: 'abc1234', repo: { fork: false } },
+      user: { login: 'li2233-max' },
+    },
+  };
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith('/pulls/8') && options.headers?.accept === 'application/vnd.github.v3.diff') {
+      return new Response('diff --git a/a.md b/a.md');
+    }
+    if (url.endsWith('/issues/8/comments?per_page=100')) {
+      return new Response(JSON.stringify([{ id: 11, body: '<!-- pr-security-gate-report -->\n旧报告' }]));
+    }
+    if (url.endsWith('/issues/comments/11')) {
+      return new Response(JSON.stringify({ id: 11 }));
+    }
+    if (url === 'https://api.deepseek.com/chat/completions') {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(review()) } }] }));
+    }
+    throw new Error(`未预期请求：${url}`);
+  };
+  const dependencies = createWorkflowDependencies({
+    event,
+    env: { GITHUB_REPOSITORY: 'li2233-max/requirement-solution-planner', GITHUB_TOKEN: 'github-token', DEEPSEEK_API_KEY: 'deepseek-key' },
+    fetchImpl,
+    readFileImpl: async () => '# PR 安全审查门禁',
+    policyRoot: '/policy',
+  });
+
+  const raw = await dependencies.callModel({ model: 'deepseek-v4-pro', prompt: '审查 diff' });
+  const diff = await dependencies.getDiff();
+  await dependencies.upsertComment('<!-- pr-security-gate-report -->\n新报告');
+
+  assert.equal(raw.conclusion, 'PASS');
+  assert.match(diff, /diff --git/);
+  const deepSeekCall = calls.find(call => call.url === 'https://api.deepseek.com/chat/completions');
+  assert.equal(deepSeekCall.options.method, 'POST');
+  assert.equal(deepSeekCall.options.headers.authorization, 'Bearer deepseek-key');
+  assert.equal(JSON.parse(deepSeekCall.options.body).model, 'deepseek-v4-pro');
+  const commentCall = calls.find(call => call.url.endsWith('/issues/comments/11'));
+  assert.equal(commentCall.options.method, 'PATCH');
 });
