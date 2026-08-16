@@ -12,6 +12,25 @@ Pick the tightest signal available:
 4. CLI / HTTP script for service behavior.
 5. Manual self-test checklist when automation is not practical.
 
+## Cross-cutting verification gates
+
+Every plan that produces code must schedule these checks where applicable:
+
+1. **Security review**: 认证/授权覆盖面、密钥硬编码扫描、PII 数据的下载/访问面。
+2. **Data integrity**: 迁移与回填验证（历史数据可关联、唯一约束生效、回填脚本可重复执行）。
+3. **Structure review**: 分层红线（视图无业务逻辑）、单文件规模、前端路由与统一请求层。
+
+## Criteria-to-verification mapping (hard rule)
+
+每条完成标准与错误判断标准必须对应至少一个复核动作；复核动作未覆盖某条标准时，该方案视为未完成。
+
+```md
+| 标准 | 对应复核动作 |
+|---|---|
+| 密钥不硬编码 | grep 检查代码无默认密钥；缺少 SECRET_KEY 启动报错 |
+| 未认证返回 401 | curl 未带凭证访问业务接口 |
+```
+
 ## Bug fix planning
 
 Do not plan the fix before planning the reproduction signal.
@@ -77,3 +96,12 @@ Use these terms in technical plans when useful:
 - **Depth**: how much behavior sits behind a small interface.
 
 Prefer plans that make modules deeper, interfaces smaller, and verification possible at the seam.
+
+## Production readiness (production-bound systems)
+
+上线形态为生产系统的方案，验证路径必须覆盖：
+
+- prod 配置：非 runserver、DEBUG=0、强随机密钥、DB/Redis 端口不外露
+- 健康检查：readiness/liveness 包含 DB/Redis 探活
+- 迁移：启动期统一迁移或有明确的竞争规避方案
+- 静态/媒体文件：PII 文件不走公开静态路径，下载需鉴权
